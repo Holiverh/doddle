@@ -20,18 +20,17 @@ class View(tornado.web.RequestHandler):
             if method not in self.SUPPORTED_METHODS:
                 raise ValueError("Unknown HTTP method '{}'".format(method))
 
-    def make_response(self, response):
-        content = None
-        status_code = 200
-        headers = {"content-type": "text/html"}
-        if isinstance(response, doddle.response.Response):
-            return response
-        if isinstance(response, bytes):
-            content = response
-        elif (isinstance(response, collections.Sequence)
-                and not isinstance(response, basestring)):
+    def make_response(self, view_response):
+        response = doddle.response.Response("", 200,
+                                            {"content-type": "text/html"})
+        if isinstance(view_response, doddle.response.Response):
+            return view_response
+        if isinstance(view_response, bytes):
+            response.content = view_response
+        elif (isinstance(view_response, collections.Sequence)
+                and not isinstance(view_response, basestring)):
             pass
-        elif hasattr(response, "__call__"):
+        elif hasattr(view_response, "__call__"):
             # TODO: WSGI application delegate
             pass
         elif response is None:
@@ -40,10 +39,8 @@ class View(tornado.web.RequestHandler):
             # Slight deviation from Flask here. Flask will default to
             # treating it as a WSGI application but it seems far more
             # reasonable to try coerce the response into a string.
-            content = unicode(response)
-        if content is None:
-            raise TypeError("View function didn't return anything")
-        return doddle.response.Response(content, status_code, headers)
+            response.content = unicode(view_response)
+        return response
 
     def handle(self, **kwargs):
         if self.request.method not in self.methods:
@@ -53,7 +50,8 @@ class View(tornado.web.RequestHandler):
         self.set_status(response.status_code)
         for header, value in response.headers.iteritems():
             self.set_header(header, value)
-        self.write(response.content)
+        if response.status_code != 204:
+            self.write(response.content)
         self.finish()
 
     def options(self, **kwargs):
