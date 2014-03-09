@@ -6,6 +6,7 @@ from __future__ import (absolute_import,
 
 import collections
 
+import tornado.httputil
 import tornado.web
 
 import doddle.response
@@ -27,9 +28,21 @@ class View(tornado.web.RequestHandler):
             return view_response
         if isinstance(view_response, bytes):
             response.content = view_response
-        elif (isinstance(view_response, collections.Sequence)
-                and not isinstance(view_response, basestring)):
-            pass
+        elif isinstance(view_response, tuple):
+            content, status_or_headers, headers = \
+                view_response + (None,) * (3 - len(view_response))
+            if content is None:
+                raise TypeError("View function returned None")
+            if isinstance(status_or_headers,
+                          (dict, tornado.httputil.HTTPHeaders)):
+                headers = status_or_headers
+                status_or_headers = None
+            if status_or_headers is not None:
+                # TODO: differentiate between status codes and reasons
+                response.status_code = status_or_headers
+            if headers:
+                response.headers.update(headers)
+            response.content = content
         elif hasattr(view_response, "__call__"):
             # TODO: WSGI application delegate
             pass
