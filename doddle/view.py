@@ -4,7 +4,7 @@
 from __future__ import (absolute_import,
                         unicode_literals, print_function, division)
 
-import collections
+import re
 
 import tornado.httputil
 import tornado.web
@@ -12,9 +12,100 @@ import tornado.web
 import doddle.response
 
 
+class Rule(tornado.web.URLSpec):
+
+    def __init__(self, rule, view_func, methods):
+        self.converters = {}
+        url_spec = ""
+        start = 0
+        for match in BaseConverter.re_rule_variable.finditer(rule):
+            type_ = BaseConverter.converters.get(match.group("type"),
+                                                 StringConverter)()
+            identifier = match.group("identifier")
+            self.converters[identifier] = type_
+            url_spec += rule[start:match.start()]
+            start = match.end()
+            regex = type_.regex
+            url_spec += "(?P<" + identifier + ">" + regex + ")"
+        url_spec += rule[start:]
+        kwargs = {
+            "rule": self,
+            "view_func": view_func,
+            "methods": methods,
+        }
+        super(Rule, self).__init__(url_spec, View, kwargs, view_func.__name__)
+
+    def to_python(self, identifier, value):
+        return self.converters[identifier].to_python(value)
+
+
+class BaseConverter(object):
+
+    name = None
+
+    class __metaclass__(type):
+
+        converters = {}
+
+        def __new__(meta, name, bases, attrs):
+            if "name" not in attrs:
+                raise AttributeError("Converter must have a 'name' attribute")
+            if attrs["name"] in meta.converters:
+                raise KeyError("Converter with name '{}' "
+                               "already exists".format(attrs["name"]))
+            attrs["converters"] = meta.converters
+            cls = type.__new__(meta, name, bases, attrs)
+            if attrs["name"] is not None:
+                meta.converters[attrs["name"]] = cls
+            return cls
+
+        @property
+        def re_rule_variable(cls):
+            names = "|".join(cls.converters.iterkeys())
+            return re.compile(r"<(?:(?P<type>" + names +
+                               "):)?(?P<identifier>[A-Za-z_][A-Za-z0-9_]+)>")
+
+
+class StringConverter(BaseConverter):
+
+    name = "str"
+    regex = r"[^/]+"
+
+    def to_python(self, value):
+        return unicode(value)
+
+
+class IntegerConverter(BaseConverter):
+
+    name = "int"
+    regex = r"-?\d+"
+
+    def to_python(self, value):
+        return int(value)
+
+
+class FloatConverter(BaseConverter):
+
+    name = "float"
+    regex = r"(\d+\.\d+|\d+|\.\d+|\d+\.)s"
+
+    def to_python(self, value):
+        return float(value)
+
+
+class PathConverter(BaseConverter):
+
+    name = "path"
+    regex = r"[A-Za-z0-9\-._~!$&'()*+,;=:@/]+"
+
+    def to_python(self, value):
+        return unicode(value)
+
+
 class View(tornado.web.RequestHandler):
 
-    def initialize(self, view_func, methods):
+    def initialize(self, rule, view_func, methods):
+        self.rule = rule
         self.view_func = view_func
         self.methods = [method.upper() for method in methods]
         for method in methods:
@@ -56,6 +147,10 @@ class View(tornado.web.RequestHandler):
         return response
 
     def handle(self, **kwargs):
+        for identifier in kwargs:
+            kwargs[identifier] = self.rule.to_python(identifier,
+                                                     kwargs[identifier])
+        print(kwargs)
         if self.request.method not in self.methods:
             response = doddle.response.Response("405 Not Supported", 405)
         else:
