@@ -7,6 +7,8 @@ from __future__ import (absolute_import,
 import tornado.ioloop
 import tornado.web
 
+import doddle.websocket
+
 import doddle.view
 
 
@@ -32,3 +34,14 @@ class Doddle(tornado.web.Application):
             return urlspec
 
         return decorator
+
+    def websocket(self, rule):
+
+        def decorator(func):
+            urlspec = doddle.websocket.WebSocketService(rule, func)
+            self.add_handlers(self.host, [urlspec])
+            return urlspec
+
+        return decorator
+
+    websocket.subprotocol = doddle.websocket.Subprotocol
