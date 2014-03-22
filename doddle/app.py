@@ -35,13 +35,12 @@ class Doddle(tornado.web.Application):
 
         return decorator
 
-    def websocket(self, rule):
+    def websocket(self, rule, protocols=None):
 
-        def decorator(func):
-            urlspec = doddle.websocket.WebSocketService(rule, func)
-            self.add_handlers(self.host, [urlspec])
-            return urlspec
+        def decorator(on_message):
+            service_spec = doddle.websocket.ServiceSpec(
+                rule, message_handler=on_message)
+            self.add_handlers(self.host, [service_spec])
+            return service_spec
 
         return decorator
-
-    websocket.subprotocol = doddle.websocket.Subprotocol
