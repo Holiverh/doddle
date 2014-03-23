@@ -18,6 +18,8 @@ class Rule(tornado.web.URLSpec):
         self.converters = {}
         url_spec = ""
         start = 0
+        for char in "\\.^$+?[]{}|()<>":
+            rule = rule.replace(char, "\\" + char)
         for match in BaseConverter.re_rule_variable.finditer(rule):
             type_ = BaseConverter.converters.get(match.group("type"),
                                                  StringConverter)()
