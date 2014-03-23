@@ -33,3 +33,6 @@ Websocket Example
     def error(error_message):
         # The @echo decorator allows us to yield messages from any function
         yield "error: " + error_message
+
+
+    app.run()
