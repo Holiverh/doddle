@@ -69,13 +69,15 @@ class Service(tornado.websocket.WebSocketHandler):
         @functools.wraps(function)
         def wrapper(*args, **kwargs):
             with self.scope(function):
-                for message in function(*args, **kwargs):
-                    if not isinstance(message, unicode):
-                        raise TypeError("Message was not of type unicode")
-                    try:
-                        self.write_message(message)
-                    except tornado.websocket.WebSocketClosedError:
-                        pass
+                returned = function(*args, **kwargs)
+                if returned is not None:
+                    for message in function(*args, **kwargs):
+                        if not isinstance(message, unicode):
+                            raise TypeError("Message was not of type unicode")
+                        try:
+                            self.write_message(message)
+                        except tornado.websocket.WebSocketClosedError:
+                            pass
 
         return wrapper
 
